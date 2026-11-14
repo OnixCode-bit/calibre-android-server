@@ -1,5 +1,5 @@
 #!/data/data/com.termux/files/usr/bin/sh
-# SEM ROOT (Termux + proot-distro) — BETA, ainda nao testado: ponte entre o Termux e o Debian do proot.
+# SEM ROOT (Termux + proot-distro) — BETA, ainda não testado: ponte entre o Termux e o Debian do proot.
 # O calibre-server.sh roda DENTRO do Debian; este script roda no Termux e o chama.
 #
 # Uso: ~/calibre/termux.sh {start|stop|restart|status}

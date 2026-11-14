@@ -1,5 +1,5 @@
 #!/data/data/com.termux/files/usr/bin/sh
-# SEM ROOT (BETA, ainda nao testado): início automático pelo app Termux:Boot.
+# SEM ROOT (BETA, ainda não testado): início automático pelo app Termux:Boot.
 # Copie para ~/.termux/boot/calibre no Termux e dê chmod +x.
 
 termux-wake-lock
