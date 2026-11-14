@@ -19,7 +19,7 @@ EXTS='epub|pdf|mobi|azw|azw3|kfx|fb2|cbz|cbr|djvu|docx|rtf|txt|lit|pdb'
 mkdir -p "$INBOX" "$FAILED"
 
 if [ ! -r "$AUTH" ]; then
-    echo "$(date '+%F %T') ERRO: falta $AUTH (usuario na 1a linha, senha na 2a)" >>"$LOG"
+    echo "$(date '+%F %T') ERRO: falta $AUTH (usuário na 1ª linha, senha na 2ª)" >>"$LOG"
     exit 1
 fi
 CAL_USER=$(sed -n 1p "$AUTH")
@@ -38,7 +38,7 @@ while true; do
     find "$INBOX" -path "$FAILED" -prune -o -type f ! -name '.*' ! -newermt '15 seconds ago' -print |
         while IFS= read -r f; do
             name=$(basename "$f")
-            ext=$(echo "${name##*.}" | tr 'A-Z' 'a-z')
+            ext=$(echo "${name##*.}" | tr '[:upper:]' '[:lower:]')
             if ! echo "$ext" | grep -Eqx "$EXTS"; then
                 log "ignorado (formato .$ext): $name"
                 mv "$f" "$FAILED/" 2>/dev/null

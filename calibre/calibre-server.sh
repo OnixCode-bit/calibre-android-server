@@ -17,7 +17,7 @@ alive() {
 
 start() {
     if alive "$PIDFILE"; then
-        echo "calibre-server ja esta rodando (PID $(cat "$PIDFILE"))"
+        echo "calibre-server já está rodando (PID $(cat "$PIDFILE"))"
     else
         nohup calibre-server \
             --port "$PORT" \
@@ -39,7 +39,7 @@ start() {
     fi
 
     if alive "$WATCHER_PIDFILE"; then
-        echo "vigia da inbox ja esta rodando (PID $(cat "$WATCHER_PIDFILE"))"
+        echo "vigia da inbox já está rodando (PID $(cat "$WATCHER_PIDFILE"))"
     elif [ -x "$WATCHER" ]; then
         nohup "$WATCHER" >/dev/null 2>&1 &
         echo $! >"$WATCHER_PIDFILE"

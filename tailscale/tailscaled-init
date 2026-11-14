@@ -9,30 +9,30 @@
 ### END INIT INFO
 
 # Script de boot do tailscaled para o Debian em chroot (sem systemd).
-# Modo userspace: nao cria interface nem mexe nas rotas do Android. Conexoes que
-# chegam pelo IP do Tailscale (100.x.y.z) sao repassadas para os servicos locais
+# Modo userspace: não cria interface nem mexe nas rotas do Android. Conexões que
+# chegam pelo IP do Tailscale (100.x.y.z) são repassadas para os serviços locais
 # (Calibre na 8080, SMB na 445).
 
 DAEMON=/usr/sbin/tailscaled
 PIDFILE=/run/tailscaled.pid
 LOG=/var/log/tailscaled.log
-ARGS="--tun=userspace-networking --state=/var/lib/tailscale/tailscaled.state --socket=/run/tailscale/tailscaled.sock --port=41641"
+SOCK=/run/tailscale/tailscaled.sock
 
 alive() {
     # Pergunta ao próprio daemon pelo socket. Não dá para olhar o PID: o /proc do
     # Android usa hidepid=2, e um usuário comum não enxerga processos do root.
-    tailscale --socket=/run/tailscale/tailscaled.sock version --daemon >/dev/null 2>&1
+    tailscale --socket="$SOCK" version --daemon >/dev/null 2>&1
 }
 
 start() {
     if alive; then
-        echo "tailscaled ja esta rodando (PID $(cat "$PIDFILE"))"
+        echo "tailscaled já está rodando (PID $(cat "$PIDFILE"))"
         return 0
     fi
     mkdir -p /run/tailscale /var/lib/tailscale
     # Log pequeno: zera se passar de 5 MB
     [ -f "$LOG" ] && [ "$(wc -c <"$LOG")" -gt 5242880 ] && : >"$LOG"
-    nohup "$DAEMON" $ARGS >>"$LOG" 2>&1 &
+    nohup "$DAEMON" --tun=userspace-networking --state=/var/lib/tailscale/tailscaled.state --socket="$SOCK" --port=41641 >>"$LOG" 2>&1 &
     echo $! >"$PIDFILE"
     sleep 3
     if alive; then
@@ -48,7 +48,7 @@ stop() {
         kill "$(cat "$PIDFILE")"
         echo "tailscaled parado"
     else
-        echo "tailscaled nao estava rodando"
+        echo "tailscaled não estava rodando"
     fi
     rm -f "$PIDFILE"
 }
