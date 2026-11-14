@@ -467,11 +467,15 @@ ssh celular "sudo service tailscaled restart"
 
 ## 14. Segurança
 
-Este servidor foi feito para a **rede de casa**. Antes de publicar ou adaptar:
+O servidor foi feito para a rede de casa. Confira:
 
-- **Não exponha a porta 8080 nem a 445 na internet** (nada de redirecionamento de portas no roteador). O login *Basic* manda a senha sem criptografia, e o SMB exposto é alvo constante de ataques. Para acessar de fora, use uma VPN, como o Tailscale ([passo 13](#13-acesso-de-fora-de-casa-tailscale)).
-- **Senhas fora do Git.** O [`.gitignore`](.gitignore) já ignora `inbox.auth`, `users.sqlite`, `.env`, logs e PIDs. Antes de cada commit, confira com `git status`.
-- **SSH só por chave**, com login por senha desligado (passo 4).
-- **Calibre nunca como root** (passo 7).
-- **Configure o Git com o e-mail privado do GitHub** antes do primeiro commit público:
-  `git config user.email "SEU_USUARIO@users.noreply.github.com"` (veja em *GitHub → Settings → Emails*).
+- **Nenhuma porta aberta no roteador.** Não redirecione a 8080 nem a 445: o login *Basic* manda a senha sem criptografia, e o SMB exposto na internet é alvo constante de ataques. Para acessar de fora, use o Tailscale ([passo 13](#13-acesso-de-fora-de-casa-tailscale)).
+- **SSH só por chave**, com o login por senha desligado ([passo 4](#4-acesso-ssh-por-chave)).
+- **Calibre nunca como root** ([passo 7](#7-iniciar-no-boot)).
+- **`inbox.auth` com `chmod 600`**, para só o seu usuário ler a senha ([passo 8](#8-inbox-livros-entram-sozinhos)).
+- **Aparelho perdido ou roubado?** Remova-o no painel do Tailscale (*Machines → `...` → Remove*). Sem a expiração da chave, ele continuaria com acesso à sua rede.
+- **Atualizações:** de vez em quando, rode o comando abaixo. Ele atualiza o Calibre, o Samba e o Tailscale.
+
+  ```sh
+  ssh -t celular "sudo apt-get update && sudo apt-get upgrade -y && ~/calibre/calibre-server.sh restart && sudo service tailscaled restart"
+  ```
