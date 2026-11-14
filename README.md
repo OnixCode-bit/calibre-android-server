@@ -69,7 +69,7 @@ Os exemplos usam os valores abaixo. **Troque pelos seus** sempre que aparecerem:
 - O **Samba** mostra essa pasta na rede do Windows, então "adicionar um livro" vira "arrastar um arquivo".
 - O **`calibre-server.sh`** liga e desliga o servidor e o vigia juntos. O **`calibre-init`** chama esse script no boot.
 
-### Arquivos deste repositório
+### Arquivos do tutorial
 
 | Arquivo | O que faz | Onde fica no celular |
 | --- | --- | --- |
@@ -78,7 +78,6 @@ Os exemplos usam os valores abaixo. **Troque pelos seus** sempre que aparecerem:
 | [`calibre/calibre-init`](calibre/calibre-init) | Script de boot | `/etc/init.d/calibre-server` |
 | [`calibre/smb-inbox.conf`](calibre/smb-inbox.conf) | Configuração da pasta compartilhada | colado no fim de `/etc/samba/smb.conf` |
 | [`tailscale/tailscaled-init`](tailscale/tailscaled-init) | Script de boot do Tailscale (modo userspace) | `/etc/init.d/tailscaled` |
-| [`.vscode/tasks.json`](.vscode/tasks.json) | Atalhos do VS Code (`Ctrl+Shift+P` → *Run Task*) | — (fica no PC) |
 
 ---
 
@@ -88,6 +87,7 @@ Você precisa de:
 
 - **Um celular Android rodando Debian ou Ubuntu.** O jeito mais comum é um chroot com o [Linux Deploy](https://github.com/meefik/linuxdeploy), que exige root. Sem root, veja o [branch `beta`](https://github.com/OnixCode-bit/calibre-android-server/tree/beta).
 - **Um PC na mesma rede Wi-Fi.** No Windows, instale o [Git for Windows](https://git-scm.com/download/win), que traz o *Git Bash* com `ssh` e `scp`.
+- **Os arquivos deste tutorial no PC.** Nesta página, clique em *Code → Download ZIP* e extraia, ou rode `git clone https://github.com/OnixCode-bit/calibre-android-server.git`. Os comandos com `scp` deste guia rodam de dentro dessa pasta.
 - **Um terminal no celular**, pelo menos para os primeiros passos: o próprio app do Linux Deploy, o Termux ou um cliente SSH como o MobaXterm no PC.
 
 > 💡 **Por que chroot?** No chroot, o Debian roda direto sobre o kernel do Android, quase sem perda de desempenho. Por outro lado, **não há systemd**: os serviços sobem pelos scripts de `/etc/init.d`, e é por isso que este guia usa um `calibre-init` em vez de um serviço do systemd.
@@ -137,25 +137,14 @@ Teste: `ssh celular "uname -a"` deve responder **sem pedir senha**.
 
 > 🔒 Com a chave funcionando, desligue o login por senha. Edite `/etc/ssh/sshd_config` no celular, troque para `PasswordAuthentication no` e rode `sudo service ssh restart`.
 
-### (Opcional) `apt` sem senha
-
-Para instalar pacotes do PC sem digitar a senha do `sudo`, libere só os comandos de pacote e serviço. **No celular:**
-
-```sh
-echo 'usuario ALL=(root) NOPASSWD: /usr/bin/apt, /usr/bin/apt-get, /usr/sbin/service' | sudo tee /etc/sudoers.d/90-usuario-apt
-sudo chmod 440 /etc/sudoers.d/90-usuario-apt && sudo visudo -c
-```
-
-> ⚠️ Liberar o `apt` sem senha equivale quase a liberar o root, porque um pacote roda scripts como administrador. Só faça isso se o celular for acessível apenas pela sua rede local e por chave SSH.
-
 ---
 
 ## 5. Instalar o Calibre
 
-O Debian já tem o Calibre nos repositórios. O `--no-install-recommends` evita centenas de MB de pacotes gráficos que um servidor não usa:
+O Debian já tem o Calibre nos repositórios. O `-t` deixa o `sudo` pedir a senha pelo SSH, e o `--no-install-recommends` evita centenas de MB de pacotes gráficos que um servidor não usa:
 
 ```sh
-ssh celular "sudo apt-get update && sudo apt-get install -y --no-install-recommends calibre"
+ssh -t celular "sudo apt-get update && sudo apt-get install -y --no-install-recommends calibre"
 ssh celular "calibre-server --version"
 ```
 
@@ -182,7 +171,7 @@ ssh celular "mkdir -p ~/calibre/library && calibredb --with-library ~/calibre/li
 
 ### 6.2 Os scripts
 
-Na pasta deste repositório, no PC:
+Antes de enviar, abra `calibre/calibre-init` e troque `RUN_AS="usuario"` pelo **seu** usuário do Debian. Depois, na pasta do tutorial (passo 2), no Git Bash:
 
 ```sh
 scp calibre/calibre-server.sh calibre/inbox-watcher.sh calibre/calibre-init celular:calibre/
@@ -207,7 +196,7 @@ ssh celular "~/calibre/calibre-server.sh start"
 
 Abra `http://192.168.1.50:8080` no navegador do PC e entre com `leitor` e a senha. 🎉
 
-> 💡 **O que o `calibre-server.sh` liga** (veja os comentários no script):
+> 💡 **O que o `calibre-server.sh` liga:**
 > - `--listen-on 0.0.0.0`: aceita conexões de toda a rede local, não só do próprio celular;
 > - `--enable-auth --auth-mode basic`: exige login. O modo *Basic* é necessário porque o KOReader não entende o modo padrão (*Digest*) e recebe erro 400;
 > - `--max-log-size 5`: o log não passa de 5 MB e não enche o armazenamento.
@@ -218,8 +207,7 @@ Abra `http://192.168.1.50:8080` no navegador do PC e entre com `leitor` e a senh
 
 O Linux Deploy roda os scripts de `/etc/init.d` quando sobe o Debian, do mesmo jeito que o SSH sobe. Então basta instalar o `calibre-init` ali.
 
-1. Abra `calibre/calibre-init` e confira se `RUN_AS="usuario"` tem o **seu** usuário.
-2. **No celular** (o `sudo` vai pedir senha):
+1. **No celular** (o `sudo` vai pedir senha):
 
    ```sh
    sudo install -m 755 ~/calibre/calibre-init /etc/init.d/calibre-server
@@ -227,7 +215,7 @@ O Linux Deploy roda os scripts de `/etc/init.d` quando sobe o Debian, do mesmo j
    ls /etc/rc2.d | grep calibre      # deve listar o calibre-server
    ```
 
-3. Teste: reinicie o celular (ou só o Debian, pelo Linux Deploy) e rode `ssh celular "~/calibre/calibre-server.sh status"`.
+2. Teste: reinicie o celular (ou só o Debian, pelo Linux Deploy) e rode `ssh celular "~/calibre/calibre-server.sh status"`.
 
 > 💡 O `calibre-init` roda como root no boot, mas chama o servidor com `su - usuario`. **Nunca rode o Calibre como root**: se ele tiver uma falha de segurança, o estrago fica limitado ao seu usuário.
 >
@@ -330,8 +318,6 @@ ssh celular "~/calibre/calibre-server.sh restart"    # reiniciar
 ssh celular "tail -f ~/calibre/server.log"           # log do servidor
 ssh celular "tail -f ~/calibre/inbox.log"            # livros entrando pela inbox
 ```
-
-No VS Code, as mesmas ações estão em *Terminal → Run Task* (`.vscode/tasks.json`).
 
 **Adicionar livros:** arraste para `\\192.168.1.50\livros` ou use o botão *Adicionar livros* na página web.
 
