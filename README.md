@@ -174,8 +174,6 @@ cd "$HOME/Calibre Library"   # pasta padrão; ajuste se a sua for outra
 tar -cf - . | ssh celular "mkdir -p ~/calibre/library && tar -xf - -C ~/calibre/library"
 ```
 
-> 💡 `tar | ssh` copia tudo num fluxo só. Com milhares de arquivos pequenos (capas, metadados), é bem mais rápido que o `scp -r`.
-
 **b) Começar do zero.** O `calibredb` cria uma biblioteca vazia na primeira vez que é usado numa pasta:
 
 ```sh
@@ -212,7 +210,6 @@ Abra `http://192.168.1.50:8080` no navegador do PC e entre com `leitor` e a senh
 > 💡 **O que o `calibre-server.sh` liga** (veja os comentários no script):
 > - `--listen-on 0.0.0.0`: aceita conexões de toda a rede local, não só do próprio celular;
 > - `--enable-auth --auth-mode basic`: exige login. O modo *Basic* é necessário porque o KOReader não entende o modo padrão (*Digest*) e recebe erro 400;
-> - `--enable-local-write`: permite editar metadados e enviar livros pela web;
 > - `--max-log-size 5`: o log não passa de 5 MB e não enche o armazenamento.
 
 ---
@@ -227,7 +224,7 @@ O Linux Deploy roda os scripts de `/etc/init.d` quando sobe o Debian, do mesmo j
    ```sh
    sudo install -m 755 ~/calibre/calibre-init /etc/init.d/calibre-server
    sudo update-rc.d calibre-server defaults
-   ls /etc/rc2.d | grep calibre      # deve mostrar S01calibre-server
+   ls /etc/rc2.d | grep calibre      # deve listar o calibre-server
    ```
 
 3. Teste: reinicie o celular (ou só o Debian, pelo Linux Deploy) e rode `ssh celular "~/calibre/calibre-server.sh status"`.
@@ -305,8 +302,6 @@ O Samba faz a pasta `~/calibre/inbox` aparecer no Explorer do Windows como `\\19
 
 3. **No Windows**, abra o Explorer e digite na barra de endereço `\\192.168.1.50\livros`. Entre com `usuario` e a senha do `smbpasswd`.
 
-> ⚠️ **Armadilha comum:** `sudo sh -c 'cat ~/arquivo >> /etc/...'` **não funciona**. Dentro do `sudo`, o `~` vira `/root`. Por isso o passo acima usa `cat ... | sudo tee -a`: o `cat` roda como você e só a escrita roda como root.
->
 > 💡 Se o Windows mostrar "não é possível acessar" sem pedir senha, pode estar usando uma credencial antiga. Force o login no PowerShell: `net use \\192.168.1.50\livros /user:usuario`.
 
 ---
@@ -431,8 +426,6 @@ Por padrão, cada aparelho precisa fazer login de novo a cada 180 dias. Num serv
 
 No painel (https://login.tailscale.com/admin/machines), clique em `...` ao lado do servidor e escolha **Disable key expiry**.
 
-> 🔒 Isso só pode ser feito pelo painel ou pela API, nunca pelo próprio aparelho. Se pudesse, quem roubasse o aparelho manteria o acesso para sempre.
-
 ### 13.4 Nos aparelhos que vão acessar
 
 Instale o Tailscale ([Android, iPhone, Windows, Mac, Linux](https://tailscale.com/download)) e entre na **mesma conta**. Com o app ligado:
@@ -444,17 +437,15 @@ Instale o Tailscale ([Android, iPhone, Windows, Mac, Linux](https://tailscale.co
 | Pasta da inbox (SMB) | `\\100.101.102.103\livros` |
 | SSH | `ssh usuario@100.101.102.103` |
 
-**Teste de verdade:** no celular do dia a dia, **desligue o Wi-Fi** e use o 4G. Na rede de casa, o celular alcança o servidor mesmo sem o Tailscale, e o teste não prova nada. Pelo 4G, se aparecer o pedido de usuário e senha do Calibre, o acesso remoto funciona.
+**Para testar**, desligue o Wi-Fi do celular e abra o endereço pelo 4G. Em casa, o teste não vale: pelo Wi-Fi, o celular alcança o servidor mesmo sem o Tailscale.
 
 ### 13.5 Uso
 
 ```sh
 ssh celular "tailscale status"                # aparelhos conectados
 ssh celular "/etc/init.d/tailscaled status"   # o serviço está rodando?
-ssh celular "sudo service tailscaled restart"
+ssh -t celular "sudo service tailscaled restart"
 ```
-
-> 💡 **Por que o `status` não procura o PID?** O Android monta o `/proc` com `hidepid=2`, e um usuário comum não enxerga os processos do root. Em vez disso, o script pergunta ao próprio Tailscale pelo socket (`tailscale version --daemon`).
 
 | Sintoma | O que fazer |
 | --- | --- |

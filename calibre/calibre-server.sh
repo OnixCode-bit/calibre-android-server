@@ -25,7 +25,6 @@ start() {
             --enable-auth \
             --auth-mode basic \
             --userdb "$USERDB" \
-            --enable-local-write \
             --max-log-size 5 \
             --log "$LOG" \
             "$LIB" >/dev/null 2>&1 &
