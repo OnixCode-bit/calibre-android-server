@@ -1,0 +1,5 @@
+.env
+*.log
+*.pid
+inbox.auth
+users.sqlite

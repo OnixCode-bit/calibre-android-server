@@ -1,0 +1,44 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "celular: testar SSH",
+            "type": "shell",
+            "command": "ssh celular \"uname -a && uptime\"",
+            "problemMatcher": []
+        },
+        {
+            "label": "celular: abrir shell",
+            "type": "shell",
+            "command": "ssh celular",
+            "problemMatcher": [],
+            "presentation": { "focus": true }
+        },
+        {
+            "label": "calibre: status",
+            "type": "shell",
+            "command": "ssh celular \"~/calibre/calibre-server.sh status\"",
+            "problemMatcher": []
+        },
+        {
+            "label": "calibre: reiniciar",
+            "type": "shell",
+            "command": "ssh celular \"~/calibre/calibre-server.sh restart\"",
+            "problemMatcher": []
+        },
+        {
+            "label": "calibre: log",
+            "type": "shell",
+            "command": "ssh celular \"tail -n 50 -f ~/calibre/server.log\"",
+            "problemMatcher": [],
+            "isBackground": true
+        },
+        {
+            "label": "calibre: log da inbox",
+            "type": "shell",
+            "command": "ssh celular \"tail -n 50 -f ~/calibre/inbox.log\"",
+            "problemMatcher": [],
+            "isBackground": true
+        }
+    ]
+}
