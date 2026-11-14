@@ -8,6 +8,7 @@
     ],
     "words": [
         "aarch",
+        "adb",
         "azw",
         "bookworm",
         "calibredb",
@@ -29,15 +30,20 @@
         "NOPASSWD",
         "noreply",
         "OPDS",
+        "phantom",
         "PIDFILE",
+        "pkill",
         "proot",
+        "rootfs",
+        "sfn",
         "smbd",
         "smbpasswd",
         "sqlite",
         "sshd",
         "sudoers",
-        "tailscale",
+        "sysvipc",
         "Tailscale",
+        "tailscale",
         "tailscaled",
         "Termux",
         "testparm",
@@ -46,6 +52,7 @@
         "userspace",
         "usuario",
         "visudo",
+        "WinSCP",
         "WireGuard"
     ]
 }

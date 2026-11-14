@@ -8,9 +8,28 @@ Transforme um celular Android parado na gaveta num servidor de e-books para a ca
 - **liga sozinho** quando o celular reinicia;
 - **acesso de fora de casa** pelo Tailscale, sem abrir portas no roteador.
 
-Testei no meu Moto G6 Plus, com Debian 12 (bookworm) em chroot e Calibre 6.13. Funciona em qualquer celular que rode Debian ou Ubuntu.
+Testei no meu Moto G6 Plus, com Debian 12 (bookworm) em chroot e Calibre 6.13.
 
-> 🔓 **Este guia exige root.** Sem root? Há uma versão **beta** com Termux + proot-distro no branch [`beta`](https://github.com/OnixCode-bit/calibre-android-server/tree/beta). Ainda não testei esse caminho no meu aparelho.
+> 🧪 **Você está no branch `beta`.** O caminho com root é o mesmo do [`main`](https://github.com/OnixCode-bit/calibre-android-server) (estável). O caminho **sem root** está em teste: ainda não o testei no meu aparelho.
+
+## Com root ou sem root?
+
+**Root não é obrigatório**, mas muda o que você consegue fazer:
+
+| | 🔓 **Com root**: Debian em chroot (Linux Deploy) | 📱 **Sem root (beta)**: Termux + proot-distro |
+| --- | --- | --- |
+| Biblioteca na web + OPDS | ✅ | ✅ |
+| Inbox automática | ✅ | ✅ |
+| Pasta compartilhada no Windows (SMB) | ✅ | ❌ o SMB precisa da porta 445, e só o root abre portas abaixo de 1024 |
+| Adicionar livros sem SMB | — | página web, `scp` ou WinSCP |
+| Início automático no boot | `/etc/init.d` | app **Termux:Boot** |
+| Acesso de fora de casa (Tailscale) | `tailscaled` no Debian (passo 13) | app Tailscale no próprio celular (A9) |
+| Desempenho | quase nativo | mais lento: o proot intercepta as chamadas ao sistema |
+| Fica rodando em segundo plano | estável | precisa liberar o Termux da otimização de bateria (o Android pode matá-lo) |
+| Testado por mim | ✅ | ⚠️ escrevi com base na documentação do Termux; não testei no meu aparelho |
+
+- **Com root:** siga os passos 1 a 14 na ordem.
+- **Sem root:** leia os passos 1 a 3 e depois siga o [**Apêndice: sem root (Termux) — beta**](#apêndice-sem-root-termux--beta). Ele indica quais passos reaproveitar.
 
 ---
 
@@ -30,6 +49,7 @@ Testei no meu Moto G6 Plus, com Debian 12 (bookworm) em chroot e Calibre 6.13. F
 12. [Problemas comuns](#12-problemas-comuns)
 13. [Acesso de fora de casa (Tailscale)](#13-acesso-de-fora-de-casa-tailscale)
 14. [Segurança](#14-segurança)
+- [Apêndice: sem root (Termux) — beta](#apêndice-sem-root-termux--beta)
 
 ---
 
@@ -78,6 +98,8 @@ Os exemplos usam os valores abaixo. **Troque pelos seus** sempre que aparecerem:
 | [`calibre/calibre-init`](calibre/calibre-init) | Script de boot | `/etc/init.d/calibre-server` |
 | [`calibre/smb-inbox.conf`](calibre/smb-inbox.conf) | Configuração da pasta compartilhada | colado no fim de `/etc/samba/smb.conf` |
 | [`tailscale/tailscaled-init`](tailscale/tailscaled-init) | Script de boot do Tailscale (modo userspace) | `/etc/init.d/tailscaled` |
+| [`calibre/termux.sh`](calibre/termux.sh) | **Sem root:** ponte entre o Termux e o Debian | `~/calibre/` (no Termux) |
+| [`calibre/termux-boot`](calibre/termux-boot) | **Sem root:** início automático pelo Termux:Boot | `~/.termux/boot/calibre` |
 | [`.vscode/tasks.json`](.vscode/tasks.json) | Atalhos do VS Code (`Ctrl+Shift+P` → *Run Task*) | — (fica no PC) |
 
 ---
@@ -86,7 +108,7 @@ Os exemplos usam os valores abaixo. **Troque pelos seus** sempre que aparecerem:
 
 Você precisa de:
 
-- **Um celular Android rodando Debian ou Ubuntu.** O jeito mais comum é um chroot com o [Linux Deploy](https://github.com/meefik/linuxdeploy), que exige root. Sem root, veja o [branch `beta`](https://github.com/OnixCode-bit/calibre-android-server/tree/beta).
+- **Um celular Android rodando Debian ou Ubuntu.** Com root, o jeito mais comum é um chroot com o [Linux Deploy](https://github.com/meefik/linuxdeploy). Sem root, veja o [apêndice beta](#apêndice-sem-root-termux--beta).
 - **Um PC na mesma rede Wi-Fi.** No Windows, instale o [Git for Windows](https://git-scm.com/download/win), que traz o *Git Bash* com `ssh` e `scp`.
 - **Um terminal no celular**, pelo menos para os primeiros passos: o próprio app do Linux Deploy, o Termux ou um cliente SSH como o MobaXterm no PC.
 
@@ -475,3 +497,171 @@ Este servidor foi feito para a **rede de casa**. Antes de publicar ou adaptar:
 - **Calibre nunca como root** (passo 7).
 - **Configure o Git com o e-mail privado do GitHub** antes do primeiro commit público:
   `git config user.email "SEU_USUARIO@users.noreply.github.com"` (veja em *GitHub → Settings → Emails*).
+
+---
+
+## Apêndice: sem root (Termux) — beta
+
+Sem root, o Debian roda dentro do **Termux** pelo **proot-distro**. O proot "finge" ser root para o Debian, sem tocar no sistema do Android.
+
+> ⚠️ Escrevi este caminho com base na documentação do [Termux](https://wiki.termux.com/) e do [proot-distro](https://github.com/termux/proot-distro), **sem testar no meu aparelho**. Se algo não funcionar, abra uma *issue*.
+
+### Como fica a estrutura
+
+```
+Android
+└── Termux                    ← SSH (porta 8022), Termux:Boot, termux.sh
+    └── proot-distro: Debian  ← calibre-server.sh, inbox-watcher.sh, Calibre
+        └── /root/calibre     ← biblioteca, inbox, logs
+            ▲
+            └── atalho ~/calibre no Termux aponta para cá
+```
+
+O `~/calibre` do Termux é um **atalho** para a pasta `/root/calibre` do Debian. Assim, os comandos `scp ... celular:calibre/...` deste guia funcionam igual.
+
+### A1. Instalar os apps
+
+Instale pelo **[F-Droid](https://f-droid.org/)**, não pela Play Store: a versão da Play Store está abandonada.
+
+1. **Termux** e **Termux:Boot**, os dois do F-Droid, porque precisam vir da mesma fonte.
+2. Abra o **Termux:Boot** uma vez, para o Android registrá-lo.
+3. Em *Configurações → Apps → Termux → Bateria*, escolha **Sem restrições**.
+
+> 📱 **Android 12 ou mais novo:** o sistema mata processos "filhos" em segundo plano (*phantom process killer*), o que derruba o servidor.
+> - Android 14+: *Opções do desenvolvedor → **Desativar restrições de processos filhos***.
+> - Android 12 e 13: pelo PC, com [adb](https://developer.android.com/tools/adb):
+>   `adb shell "/system/bin/device_config set_sync_disabled_for_tests persistent; /system/bin/device_config put activity_manager max_phantom_processes 2147483647"`
+
+### A2. SSH (substitui o passo 4)
+
+**No Termux, no celular:**
+
+```sh
+pkg update && pkg install -y openssh proot-distro
+passwd      # senha provisória, só para copiar a chave
+sshd        # liga o SSH na porta 8022 (sem root, a 22 não é permitida)
+```
+
+**No PC (Git Bash):**
+
+```sh
+ssh-keygen -t ed25519      # se ainda não tiver chave
+cat ~/.ssh/id_ed25519.pub | ssh -p 8022 192.168.1.50 \
+  "mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"
+```
+
+Acrescente ao `~/.ssh/config` do PC. O Termux aceita qualquer nome de usuário, então não precisa da linha `User`:
+
+```
+Host celular
+    HostName 192.168.1.50
+    Port 8022
+    IdentityFile ~/.ssh/id_ed25519
+```
+
+Teste com `ssh celular "uname -a"`. Depois, desligue a senha: rode `echo "PasswordAuthentication no" >> $PREFIX/etc/ssh/sshd_config` no Termux e reinicie o `sshd` (`pkill sshd; sshd`).
+
+### A3. Debian, Calibre e a pasta (substitui o passo 5)
+
+```sh
+ssh celular "proot-distro install debian"
+ssh celular "proot-distro login debian -- sh -c 'apt-get update && apt-get install -y --no-install-recommends calibre'"
+
+# cria /root/calibre no Debian e o atalho ~/calibre no Termux
+ssh celular 'D=$PREFIX/var/lib/proot-distro/installed-rootfs/debian/root/calibre; mkdir -p "$D" && ln -sfn "$D" ~/calibre'
+```
+
+> 💡 No proot, você é `root` dentro do Debian, então o `sudo` não é necessário.
+
+### A4. Scripts, biblioteca e usuário (substitui o passo 6)
+
+```sh
+# scripts: os do Debian e a ponte do Termux
+scp calibre/calibre-server.sh calibre/inbox-watcher.sh calibre/termux.sh celular:calibre/
+ssh celular "chmod +x ~/calibre/*.sh"
+```
+
+**Biblioteca:** a opção **a** do passo 6.1 (copiar do PC) funciona igual. Para a opção **b** (vazia):
+
+```sh
+ssh celular "~/calibre/termux.sh run sh -c 'mkdir -p ~/calibre/library && calibredb --with-library ~/calibre/library list'"
+```
+
+**Usuário de login** (modo interativo, por isso o `-t`):
+
+```sh
+ssh -t celular "~/calibre/termux.sh run calibre-server --userdb /root/calibre/users.sqlite --manage-users"
+```
+
+**Primeiro start:**
+
+```sh
+ssh celular "~/calibre/termux.sh start"
+```
+
+Abra `http://192.168.1.50:8080` no PC. 🎉
+
+> 💡 **Para que serve o `termux.sh`?** O Calibre mora no Debian, mas o SSH cai no Termux. O script faz a ponte: `start`/`restart` sobem o servidor dentro do proot em segundo plano, e `run` roda qualquer comando no Debian.
+
+### A5. Iniciar no boot (substitui o passo 7)
+
+```sh
+scp calibre/termux-boot celular:
+ssh celular "mkdir -p ~/.termux/boot && mv ~/termux-boot ~/.termux/boot/calibre && chmod +x ~/.termux/boot/calibre"
+```
+
+No boot, o Termux:Boot roda esse script. Ele segura o *wake lock*, liga o `sshd` e sobe o Calibre.
+
+### A6. Inbox (passo 8, com uma diferença)
+
+Crie o `inbox.auth` pelo Termux, que já vem com o `nano`:
+
+```sh
+ssh -t celular "nano ~/calibre/inbox.auth"     # duas linhas: leitor / sua senha
+ssh celular "chmod 600 ~/calibre/inbox.auth && ~/calibre/termux.sh restart"
+```
+
+Depois, o teste do passo 8 (`scp algum-livro.epub celular:calibre/inbox/`) funciona igual.
+
+### A7. Sem SMB: como adicionar livros (substitui o passo 9)
+
+Como não há pasta compartilhada no Windows, use uma destas opções:
+
+| Jeito | Como |
+| --- | --- |
+| **Página web** | `http://192.168.1.50:8080` → *Adicionar livros* |
+| **WinSCP** (arrastar e soltar) | protocolo SFTP, servidor `192.168.1.50`, porta `8022`, sua chave SSH (o WinSCP converte a chave do OpenSSH na primeira vez); abra a pasta `calibre/inbox` e arraste os livros |
+| **Linha de comando** | `scp *.epub celular:calibre/inbox/` |
+
+### A8. Dia a dia (substitui os comandos do passo 11)
+
+```sh
+ssh celular "~/calibre/termux.sh status"
+ssh celular "~/calibre/termux.sh restart"
+ssh celular "tail -f ~/calibre/server.log"
+ssh celular "tail -f ~/calibre/inbox.log"
+```
+
+Os passos 3 (IP fixo), 10 (KOReader), 12 (problemas comuns) e 14 (segurança) valem para os dois caminhos.
+
+**Problemas típicos de quem está sem root:**
+
+| Sintoma | O que fazer |
+| --- | --- |
+| O servidor cai com a tela apagada | Termux em **Sem restrições** de bateria (A1) e *wake lock* ativo (aparece na notificação do Termux) |
+| O servidor cai depois de alguns minutos no Android 12+ | *phantom process killer*: veja o aviso em A1 |
+| Não sobe no boot | abriu o Termux:Boot uma vez? O arquivo `~/.termux/boot/calibre` tem `chmod +x`? |
+| `ssh: connect to host ... port 8022: Connection refused` | o `sshd` não está rodando: abra o Termux e digite `sshd` |
+
+### A9. Acesso de fora de casa (substitui o passo 13)
+
+Sem root, use o **app Tailscale** no próprio celular servidor, em vez do `tailscaled` no Debian:
+
+1. Instale o **Tailscale** (Play Store ou F-Droid) no celular servidor e entre na sua conta.
+2. Aceite o pedido de conexão VPN do Android. Um ícone de chave aparece na barra de status.
+3. Desative a expiração da chave no painel, como no [passo 13.3](#133-desativar-a-expiração-da-chave).
+4. Nos aparelhos que vão acessar, siga o [passo 13.4](#134-nos-aparelhos-que-vão-acessar). Use o IP que o app mostra (ex.: `100.101.102.103`).
+
+> 💡 **Por que funciona:** o Debian do proot usa a mesma rede do Android. O Calibre escuta em `0.0.0.0:8080`, ou seja, em todas as interfaces, inclusive a VPN do Tailscale.
+>
+> ⚠️ O Android permite **uma VPN por vez**. Se o celular servidor já usa outra VPN, as duas não funcionam juntas. Em *Configurações → Rede → VPN → Tailscale*, ative **VPN sempre ativa**, para ela voltar sozinha depois de um reboot.
