@@ -5,7 +5,8 @@ Transforme um celular Android parado na gaveta num servidor de e-books para a ca
 - **biblioteca no navegador** de qualquer aparelho da rede (`http://IP_DO_CELULAR:8080`);
 - **catálogo OPDS** para apps de leitura como o KOReader;
 - **pasta compartilhada no Windows** (`\\IP_DO_CELULAR\livros`): arraste um livro para ela e ele entra sozinho na biblioteca;
-- **liga sozinho** quando o celular reinicia.
+- **liga sozinho** quando o celular reinicia;
+- **acesso de fora de casa** pelo Tailscale, sem abrir portas no roteador.
 
 Testei no meu Moto G6 Plus, com Debian 12 (bookworm) em chroot e Calibre 6.13. Funciona em qualquer celular que rode Debian ou Ubuntu.
 
@@ -27,7 +28,8 @@ Testei no meu Moto G6 Plus, com Debian 12 (bookworm) em chroot e Calibre 6.13. F
 10. [Ler no KOReader (OPDS)](#10-ler-no-koreader-opds)
 11. [Uso no dia a dia](#11-uso-no-dia-a-dia)
 12. [Problemas comuns](#12-problemas-comuns)
-13. [Segurança](#13-segurança)
+13. [Acesso de fora de casa (Tailscale)](#13-acesso-de-fora-de-casa-tailscale)
+14. [Segurança](#14-segurança)
 
 ---
 
@@ -40,7 +42,8 @@ Os exemplos usam os valores abaixo. **Troque pelos seus** sempre que aparecerem:
 | `192.168.1.50` | IP do celular na rede local | passo 3 |
 | `usuario` | seu usuário no Debian do celular | comando `whoami` no celular |
 | `leitor` | usuário de login do Calibre (você escolhe) | passo 6 |
-| `celular` | apelido SSH do celular no PC | passo 4 |
+| `celular` | apelido SSH do celular no PC (e nome dele no Tailscale) | passos 4 e 13 |
+| `100.101.102.103` | IP do celular no Tailscale | passo 13 |
 
 ---
 
@@ -74,6 +77,7 @@ Os exemplos usam os valores abaixo. **Troque pelos seus** sempre que aparecerem:
 | [`calibre/inbox-watcher.sh`](calibre/inbox-watcher.sh) | Vigia a inbox e adiciona os livros | `~/calibre/` |
 | [`calibre/calibre-init`](calibre/calibre-init) | Script de boot | `/etc/init.d/calibre-server` |
 | [`calibre/smb-inbox.conf`](calibre/smb-inbox.conf) | Configuração da pasta compartilhada | colado no fim de `/etc/samba/smb.conf` |
+| [`tailscale/tailscaled-init`](tailscale/tailscaled-init) | Script de boot do Tailscale (modo userspace) | `/etc/init.d/tailscaled` |
 | [`.vscode/tasks.json`](.vscode/tasks.json) | Atalhos do VS Code (`Ctrl+Shift+P` → *Run Task*) | — (fica no PC) |
 
 ---
@@ -365,11 +369,107 @@ ssh celular "~/calibre/calibre-server.sh restart"    # sempre depois de mexer no
 
 ---
 
-## 13. Segurança
+## 13. Acesso de fora de casa (Tailscale)
+
+O [Tailscale](https://tailscale.com/) cria uma rede privada entre os seus aparelhos, criptografada com WireGuard. Com ele, você abre a biblioteca na rua, pelo 4G, **sem abrir nenhuma porta no roteador**. A conta pessoal é gratuita.
+
+```
+ celular do dia a dia (4G)                      celular servidor (em casa)
+ app Tailscale ligado  ──── túnel WireGuard ────  tailscaled
+ http://100.101.102.103:8080                      Calibre na 8080
+```
+
+### 13.1 Por que o modo *userspace*
+
+O Tailscale normalmente cria uma interface de rede (`tailscale0`) e mexe nas regras de roteamento. Num Debian em chroot, essas regras são **as mesmas do Android**, e mexer nelas pode derrubar a rede do celular.
+
+No modo **userspace** (`--tun=userspace-networking`):
+
+- nada muda nas rotas do Android;
+- as conexões que chegam pelo IP do Tailscale são repassadas para os serviços locais (Calibre, SMB, SSH);
+- limitação: o próprio servidor não acessa os outros aparelhos da rede Tailscale. Para servir livros, isso não faz falta.
+
+### 13.2 Instalar
+
+O pacote do Tailscale só traz serviço para systemd, que o chroot não tem. Por isso este repositório inclui o [`tailscale/tailscaled-init`](tailscale/tailscaled-init), um script de boot no mesmo estilo do `calibre-init`.
+
+**Do PC**, envie o script:
+
+```sh
+scp tailscale/tailscaled-init celular:
+```
+
+**No celular** (o `sudo` vai pedir senha):
+
+```sh
+# repositório oficial do Tailscale
+curl -fsSL https://pkgs.tailscale.com/stable/debian/bookworm.noarmor.gpg | sudo tee /usr/share/keyrings/tailscale-archive-keyring.gpg >/dev/null
+curl -fsSL https://pkgs.tailscale.com/stable/debian/bookworm.tailscale-keyring.list | sudo tee /etc/apt/sources.list.d/tailscale.list >/dev/null
+sudo apt-get update && sudo apt-get install -y tailscale
+
+# início no boot e start
+sudo install -m 755 ~/tailscaled-init /etc/init.d/tailscaled && sudo update-rc.d tailscaled defaults
+sudo service tailscaled start
+
+# entrar na sua conta
+sudo tailscale up --hostname=celular --operator=usuario
+```
+
+O último comando mostra um link `https://login.tailscale.com/a/...`. Abra no navegador, entre na sua conta Tailscale (dá para usar Google, GitHub ou Microsoft) e aprove o aparelho.
+
+> 💡 **`--operator=usuario`** deixa o seu usuário comum usar o comando `tailscale` sem `sudo`. **`--hostname=celular`** define o nome do aparelho na rede Tailscale; com o MagicDNS ligado, `http://celular:8080` também funciona.
+
+Descubra o IP que o servidor recebeu:
+
+```sh
+ssh celular "tailscale ip -4"      # ex.: 100.101.102.103
+```
+
+### 13.3 Desativar a expiração da chave
+
+Por padrão, cada aparelho precisa fazer login de novo a cada 180 dias. Num servidor, isso significa ficar sem acesso de repente.
+
+No painel (https://login.tailscale.com/admin/machines), clique em `...` ao lado do servidor e escolha **Disable key expiry**.
+
+> 🔒 Isso só pode ser feito pelo painel ou pela API, nunca pelo próprio aparelho. Se pudesse, quem roubasse o aparelho manteria o acesso para sempre.
+
+### 13.4 Nos aparelhos que vão acessar
+
+Instale o Tailscale ([Android, iPhone, Windows, Mac, Linux](https://tailscale.com/download)) e entre na **mesma conta**. Com o app ligado:
+
+| Serviço | Endereço remoto |
+| --- | --- |
+| Calibre (web) | `http://100.101.102.103:8080` |
+| OPDS (KOReader) | `http://100.101.102.103:8080/opds` |
+| Pasta da inbox (SMB) | `\\100.101.102.103\livros` |
+| SSH | `ssh usuario@100.101.102.103` |
+
+**Teste de verdade:** no celular do dia a dia, **desligue o Wi-Fi** e use o 4G. Na rede de casa, o celular alcança o servidor mesmo sem o Tailscale, e o teste não prova nada. Pelo 4G, se aparecer o pedido de usuário e senha do Calibre, o acesso remoto funciona.
+
+### 13.5 Uso
+
+```sh
+ssh celular "tailscale status"                # aparelhos conectados
+ssh celular "/etc/init.d/tailscaled status"   # o serviço está rodando?
+ssh celular "sudo service tailscaled restart"
+```
+
+> 💡 **Por que o `status` não procura o PID?** O Android monta o `/proc` com `hidepid=2`, e um usuário comum não enxerga os processos do root. Em vez disso, o script pergunta ao próprio Tailscale pelo socket (`tailscale version --daemon`).
+
+| Sintoma | O que fazer |
+| --- | --- |
+| `tailscale status` diz `Logged out` | rode de novo `sudo tailscale up --hostname=celular --operator=usuario` |
+| Servidor "offline" no painel | `sudo service tailscaled restart` e leia o `/var/log/tailscaled.log` |
+| O IP abre, mas `http://celular:8080` não | ligue o MagicDNS no painel (*DNS → MagicDNS*) ou use o IP |
+| Não abre de fora | o app Tailscale está ligado no aparelho que acessa, na mesma conta? |
+
+---
+
+## 14. Segurança
 
 Este servidor foi feito para a **rede de casa**. Antes de publicar ou adaptar:
 
-- **Não exponha a porta 8080 nem a 445 na internet** (nada de redirecionamento de portas no roteador). O login *Basic* manda a senha sem criptografia, e o SMB exposto é alvo constante de ataques. Para acessar de fora, use uma VPN, como WireGuard ou Tailscale.
+- **Não exponha a porta 8080 nem a 445 na internet** (nada de redirecionamento de portas no roteador). O login *Basic* manda a senha sem criptografia, e o SMB exposto é alvo constante de ataques. Para acessar de fora, use uma VPN, como o Tailscale ([passo 13](#13-acesso-de-fora-de-casa-tailscale)).
 - **Senhas fora do Git.** O [`.gitignore`](.gitignore) já ignora `inbox.auth`, `users.sqlite`, `.env`, logs e PIDs. Antes de cada commit, confira com `git status`.
 - **SSH só por chave**, com login por senha desligado (passo 4).
 - **Calibre nunca como root** (passo 7).

@@ -1,0 +1,71 @@
+#!/bin/sh
+### BEGIN INIT INFO
+# Provides:          tailscaled
+# Required-Start:    $network $remote_fs
+# Required-Stop:     $network $remote_fs
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: Tailscale (modo userspace)
+### END INIT INFO
+
+# Script de boot do tailscaled para o Debian em chroot (sem systemd).
+# Modo userspace: nao cria interface nem mexe nas rotas do Android. Conexoes que
+# chegam pelo IP do Tailscale (100.x.y.z) sao repassadas para os servicos locais
+# (Calibre na 8080, SMB na 445).
+
+DAEMON=/usr/sbin/tailscaled
+PIDFILE=/run/tailscaled.pid
+LOG=/var/log/tailscaled.log
+ARGS="--tun=userspace-networking --state=/var/lib/tailscale/tailscaled.state --socket=/run/tailscale/tailscaled.sock --port=41641"
+
+alive() {
+    # Pergunta ao próprio daemon pelo socket. Não dá para olhar o PID: o /proc do
+    # Android usa hidepid=2, e um usuário comum não enxerga processos do root.
+    tailscale --socket=/run/tailscale/tailscaled.sock version --daemon >/dev/null 2>&1
+}
+
+start() {
+    if alive; then
+        echo "tailscaled ja esta rodando (PID $(cat "$PIDFILE"))"
+        return 0
+    fi
+    mkdir -p /run/tailscale /var/lib/tailscale
+    # Log pequeno: zera se passar de 5 MB
+    [ -f "$LOG" ] && [ "$(wc -c <"$LOG")" -gt 5242880 ] && : >"$LOG"
+    nohup "$DAEMON" $ARGS >>"$LOG" 2>&1 &
+    echo $! >"$PIDFILE"
+    sleep 3
+    if alive; then
+        echo "tailscaled iniciado (PID $(cat "$PIDFILE"))"
+    else
+        echo "tailscaled falhou ao iniciar; veja $LOG"
+        return 1
+    fi
+}
+
+stop() {
+    if alive; then
+        kill "$(cat "$PIDFILE")"
+        echo "tailscaled parado"
+    else
+        echo "tailscaled nao estava rodando"
+    fi
+    rm -f "$PIDFILE"
+}
+
+case "$1" in
+start) start ;;
+stop) stop ;;
+restart)
+    stop
+    sleep 2
+    start
+    ;;
+status)
+    if alive; then echo "tailscaled: rodando (PID $(cat "$PIDFILE"))"; else echo "tailscaled: parado"; fi
+    ;;
+*)
+    echo "Uso: $0 {start|stop|restart|status}"
+    exit 1
+    ;;
+esac
