@@ -9,6 +9,8 @@ Transforme um celular Android parado na gaveta num servidor de e-books para a ca
 
 Testei no meu Moto G6 Plus, com Debian 12 (bookworm) em chroot e Calibre 6.13. Funciona em qualquer celular que rode Debian ou Ubuntu.
 
+> 🔓 **Este guia exige root.** Sem root? Há uma versão **beta** com Termux + proot-distro no branch [`beta`](https://github.com/OnixCode-bit/calibre-android-server/tree/beta). Ainda não testei esse caminho no meu aparelho.
+
 ---
 
 ## Sumário
@@ -80,7 +82,7 @@ Os exemplos usam os valores abaixo. **Troque pelos seus** sempre que aparecerem:
 
 Você precisa de:
 
-- **Um celular Android rodando Debian ou Ubuntu.** O jeito mais comum é um chroot com o [Linux Deploy](https://github.com/meefik/linuxdeploy), que exige root. Também dá com Termux + proot-distro, mas aí não há início automático no boot.
+- **Um celular Android rodando Debian ou Ubuntu.** O jeito mais comum é um chroot com o [Linux Deploy](https://github.com/meefik/linuxdeploy), que exige root. Sem root, veja o [branch `beta`](https://github.com/OnixCode-bit/calibre-android-server/tree/beta).
 - **Um PC na mesma rede Wi-Fi.** No Windows, instale o [Git for Windows](https://git-scm.com/download/win), que traz o *Git Bash* com `ssh` e `scp`.
 - **Um terminal no celular**, pelo menos para os primeiros passos: o próprio app do Linux Deploy, o Termux ou um cliente SSH como o MobaXterm no PC.
 
